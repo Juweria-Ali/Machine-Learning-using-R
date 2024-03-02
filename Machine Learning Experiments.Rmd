@@ -1,0 +1,435 @@
+---
+title: "CMM510_Coursework"
+author: "Juweria Ali"
+date: "30/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Clearing the workspace and setting the working directory.
+
+```{r warning = F}
+rm(list=ls())
+```
+#Setting the working directory
+
+```{r}
+setwd("C:/Users/Kamran/Desktop/Msc_J/DataMining/Coursework")
+```
+#loading libraries
+```{r}
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(Hmisc)
+library(C50)
+library(mlbench)
+library(RColorBrewer)
+library(scales)
+library(cluster)
+library(rgl)
+library(fpc)
+library(pvclust)
+
+```
+
+# loading & reading the dataset ride4U
+```{r}
+ride4U <- read.csv("ride4U.csv", header=T, stringsAsFactors=T)
+```
+#Get high level view of data
+```{r}
+str(ride4U)
+summary(ride4U)
+class(ride4U)
+View(ride4U)
+head(ride4U)
+
+```
+
+#Visualisation of Univariate analysis of attributes temperature and humidity
+##Checking class distribution.
+```{r}
+# checking class distribution
+plot(ride4U$complaints, xlab ="Class label", ylab ="Count",col ="#1b98e0")
+```
+
+## temperature: continuous variable
+### spread
+```{r}
+summary(ride4U$temperature)
+hist(ride4U$temperature, main = "Spread for Temperature",col = "#1b98e0")
+                         
+```
+
+#Visualisation of bivariate analysis to see impact of outlook on complaints
+##stacked bar chart
+```{r}
+
+ggplot(ride4U,
+       aes(x = outlook,
+           fill = complaints)) +
+  geom_bar(position = "stack")
+```
+
+
+
+
+#Visualisation of bivariate analysis to see impact of wind on complaints
+##stacked bar chart
+```{r}
+ggplot(ride4U,
+       aes(x = wind,
+           fill = complaints)) +
+  geom_bar(position = "stack")
+
+
+
+```
+
+
+# 2) data preparation
+## city name/value unification 
+```{r}
+ride4U$city <- as.character(ride4U$city)
+```
+
+
+```{r}
+ride4U$city <- if_else(ride4U$city == 'robertburgh','Robertburgh', ride4U$city)
+```
+
+##dealing with missing values and, eliminating useless attribute country
+
+```{r}
+ride4U$city <- as.factor(ride4U$city)
+ride4U<- na.omit(ride4U)
+ride4U<-subset(ride4U,select=-c(country))
+
+```
+#3a) ride4U40: 40% of ride4U dataset
+```{r}
+set.seed(123)
+indexride4U40 <- createDataPartition(y = ride4U$complaints,
+                                p = .4,
+                                list = FALSE)
+ride4u40 <- ride4U[indexride4U40,]
+
+```
+#3b) ride4U20: 50% of ride4U40 dataset
+```{r}
+set.seed(123)
+indexride4U20 <- createDataPartition(y = ride4u40$complaints,
+                                p = .5,
+                                list = FALSE)
+ride4u20 <- ride4u40[indexride4U20,]
+
+```
+#3c) dodgyRide4U with 15% noise in attributes outlook and temperature
+##making a copy of the dataset
+```{r} 
+set.seed(123)
+dodgyRide4U<- ride4U
+corrupt1 <- rbinom(nrow(ride4U),1,0.15)    
+corrupt1 <- as.logical(corrupt1)
+```
+## Noisy attributes
+)
+#### Introducing noise in nominal attribute - outlook
+
+Introducing noise in selected instances for outlook attribute
+
+```{r}
+set.seed(123)
+noise1 <- sample(dodgyRide4U$outlook, length(dodgyRide4U$outlook) - 1, replace = T)
+dodgyRide4U$outlook[corrupt1] <- noise1[corrupt1]
+```
+
+#### Introducing noise in numeric attribute - temperature
+```{r} 
+set.seed(123)
+noise2 <- rnorm(corrupt1, median(dodgyRide4U$temperature), sd(dodgyRide4U$temperature))
+dodgyRide4U$temperature[corrupt1] <- as.integer(noise2[corrupt1])
+```
+
+
+##4) Experiment with different dataset sizes
+###First create and test the models, then compare the results.
+
+#### Creating and testing the models
+
+##### C5.0 model creation and 
+
+# Full size i.e. ride4U dataset
+```{r}
+set.seed(123)
+treeAll <- train(complaints ~ .,
+	data = ride4U,
+	method = "C5.0Tree",
+	metric = "Accuracy",
+	trControl = trainControl(method = "cv"))
+	
+ 
+```
+##To view results
+```{r}
+summary(treeAll$finalModel)
+```
+##Confusion matrix
+
+```{r}
+confusionMatrix(treeAll)
+```
+##C5.0 model on rid4U40
+```{r}
+set.seed(123)
+tree40 <- train(complaints ~ .,
+    data = ride4u40,
+    method = "C5.0Tree",
+    metric = "Accuracy",
+    trControl=trainControl(method="cv"))
+
+##To view results
+summary(tree40$finalModel)
+
+##Confusion matrix
+
+confusionMatrix(tree40)
+```
+
+##C5.0 model on ride4U20
+
+```{r}
+set.seed(123)
+tree20 <- train(complaints ~ .,
+    data = ride4u20,
+    method = "C5.0Tree",
+    metric = "Accuracy",
+    trControl=trainControl(method="cv"))
+
+##To view results
+summary(tree20$finalModel)
+
+##Confusion matrix
+
+confusionMatrix(tree20)
+```
+
+5)Experiment with dodgyRide4U and ride4U using tree classifier and instnace based classifier and evaluate the performance
+
+a)As in task 4, C5.0 model creation
+
+# Full size i.e. ride4U dataset
+```{r}
+set.seed(123)
+treeAll <- train(complaints ~ .,
+	data = ride4U,
+	method = "C5.0Tree",
+	metric = "Accuracy",
+	trControl = trainControl(method="cv"))
+ 
+```
+##To view results
+```{r}
+summary(treeAll$finalModel)
+```
+
+##Confusion matrix
+
+```{r}
+confusionMatrix(treeAll)
+```
+
+##tree classifier C5.0Tree
+###dodgyRide4U
+```{r}
+set.seed(123)
+treedodgyRide4U <- train(complaints ~ .,
+	data = dodgyRide4U,
+	method = "C5.0Tree",
+	metric = "Accuracy",
+	trControl=trainControl(method="cv"))
+```
+
+##To view results
+```{r}
+summary(treedodgyRide4U$finalModel)
+```
+##Confusion matrix
+```{r}
+confusionMatrix(treedodgyRide4U)
+```
+b)Instance based classfier - knn for ride4U and dodgyRide4U
+
+## Using 10-fold cross validation for ride4U
+
+```{r}
+ctrl1 <- trainControl(method="repeatedcv", number=10, repeats=3)
+```
+##As above but with k values of up to k=13
+```{r}
+set.seed(123)
+mod1 <- train(complaints~., data=ride4U, method="knn", tuneGrid=expand.grid(.k=1:13), trControl=ctrl1)
+print(mod1)
+plot(mod1)
+```
+```{r}
+confusionMatrix.train(mod1, norm="average")
+```
+
+
+## Using 10-fold cross validation for dodgyRide4U
+
+##As above but with k values of up to k=13 for dodgyRide4U
+```{r}
+set.seed(123)
+mod2 <- train(complaints~., data=dodgyRide4U, method="knn", tuneGrid=expand.grid(.k=1:13), trControl=ctrl1)
+print(mod2)
+plot(mod2)
+```
+```{r}
+confusionMatrix.train(mod2, norm="average")
+```
+
+#6) ride4UT preprocessing and experiment
+## loading & reading the dataset ride4U
+```{r}
+ride4UT <- read.csv("ride4UT.csv", header=T, stringsAsFactors=T)
+View (ride4UT)
+```
+##dealing with missing values and eliminating useless attribute country
+
+```{r}
+ride4UT<- na.omit(ride4UT)
+ride4UT<-subset(ride4UT,select=-c(country))
+ride4UT$city <- as.character(ride4UT$city)
+ride4UT$city <- if_else(ride4UT$city == 'robertburgh','Robertburgh', ride4UT$city)
+ride4UT$city <- as.factor(ride4UT$city)
+```
+
+## testing C5.0 on ride4UT
+```{r}
+
+TestRestreeAll <- predict(treeAll, newdata = ride4UT, type="raw")
+
+confusionMatrix(TestRestreeAll, ride4UT$complaints)
+```
+
+
+
+## testing k-NN on ride4UT
+```{r}
+
+TestResmod1 <- predict(mod1, newdata = ride4UT, type="raw")
+
+confusionMatrix(TestResmod1, ride4UT$complaints)
+```
+
+7) Clustering on ride4U
+
+## View dataset
+```{r}
+View (ride4U)
+
+##Pre-processing
+##Removing useless attributes month,day,holiday,day_of_week
+
+ride4U<-subset(ride4U,select=-c(month,day,holiday,day_of_week))
+               
+
+View (ride4U)
+```
+
+##ride4U data normalised
+```{r}
+preProcValues <- preProcess(ride4U, method = c("range"))
+
+
+ride4UNorm <- predict(preProcValues, ride4U)
+# checking normalised dataset
+head(ride4UNorm, 5)
+```
+
+## From nominal to binary - one-hot encoding
+
+
+```{r}
+set.seed(123)
+#binarise nominal attributes - one-hot encoding
+binaryVars <- dummyVars(~ ., data = ride4U)
+newride4U <- predict(binaryVars, newdata = ride4U)
+
+
+# check the results
+head(newride4U,5)
+```
+
+
+###Apply and principal components analysis (PCA).
+
+```{r}
+pca_newride4U <- preProcess(newride4U, 
+                     method = c("pca"))
+##pca_newride4U
+
+ride4U2 <- predict(pca_newride4U, newdata = newride4U)
+
+View(ride4U2)
+```
+
+
+## K-means clustering
+
+
+```{r}
+# For each value of k, k-means is applied. The average silhouette is calculated.
+set.seed(123)
+
+sil <-NULL
+for (i in 2:12) 
+{ 
+  res <- kmeans(ride4U2, centers = i, nstart = 25)
+  ss <- silhouette(res$cluster, dist(ride4U2))
+  sil[i] <- mean(ss[, 3])
+}
+plot(1:12, sil, type="b", xlab="k= Number of Clusters", ylab="Average silhouette")
+```
+k=8 seems appears to be best for clustering
+
+
+
+## Apply k-means with k=8
+
+```{r}
+set.seed(123)
+km <- kmeans(ride4U2, 8, nstart=25, iter.max=1000)
+```
+
+
+### Viewing results
+
+Checking good separation of clusters (and good cohesion) in 2-D. Are 2 principal components sufficient to distinguish between the resulting clusters?
+
+
+```{r}
+palette(alpha(brewer.pal(9,'Set1'), 0.5))
+
+plot(ride4U2, col=km$clust, pch=16)
+```
+From the above plot we can say that in a 2D space that the instances of the different clusters are mixed within each other
+
+
+### Cluster sizes  - sort clusters by size
+
+```{r}
+sort(table(km$clust))
+clust <- names(sort(table(km$clust)))
+```
+
+The resulting clusters vary in sizes with cluster 1 having the highest number fo instances and cluster 5 has the least number of instances.
+
+
+
